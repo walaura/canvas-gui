@@ -1,9 +1,18 @@
-const views = [
+interface View {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	subviews?: View[];
+}
+
+const views: View[] = [
 	{
 		x: 20,
 		y: 20,
 		width: 60,
 		height: 60,
+		subviews: [{ x: 10, y: 10, width: 20, height: 20 }],
 	},
 ];
 
@@ -31,30 +40,58 @@ const applyColorAt = (
 	}
 };
 
-for (var i = 0; i < myImageData.data.length; i = i + 4) {
-	const x = Math.floor(i / 4) % SCREEN_WIDTH;
-	const y = Math.floor(i / 4 / SCREEN_WIDTH);
+const nestView = (main: View, child: View): View => ({
+	...child,
+	x: main.x + child.x,
+	y: main.y + child.y,
+});
 
-	if (
-		x >= views[0].x &&
-		y >= views[0].y &&
-		x <= views[0].x + views[0].width &&
-		y <= views[0].y + views[0].height
-	) {
-		let color = COLORS.view;
-		if (x === views[0].x || y === views[0].y) {
-			color = COLORS.borderRaised;
-		}
+const drawView = (imageData: Uint8ClampedArray, view: View) => {
+	loopyLoop(imageData, ({ i, x, y }) => {
 		if (
-			x === views[0].x + views[0].width ||
-			y === views[0].y + views[0].height
+			x >= view.x &&
+			y >= view.y &&
+			x <= view.x + view.width &&
+			y <= view.y + view.height
 		) {
-			color = COLORS.borderSunk;
+			let color = COLORS.view;
+			if (x === view.x || y === view.y) {
+				color = COLORS.borderRaised;
+			}
+			if (x === view.x + view.width || y === view.y + view.height) {
+				color = COLORS.borderSunk;
+			}
+			applyColorAt(imageData, i, color);
 		}
-		applyColorAt(myImageData.data, i, color);
-	} else {
-		applyColorAt(myImageData.data, i, COLORS.desktop);
+	});
+	if (view.subviews) {
+		for (let subview of view.subviews) {
+			drawView(imageData, nestView(view, subview));
+		}
 	}
-}
+};
 
-ctx.putImageData(myImageData, 0, 0);
+const loopyLoop = (
+	imageData: Uint8ClampedArray,
+	callback: ({ x, y, i }: { x: number; y: number; i: number }) => void
+): void => {
+	const t0 = performance.now();
+
+	for (var i = 0; i < imageData.length; i = i + 4) {
+		const x = Math.floor(i / 4) % SCREEN_WIDTH;
+		const y = Math.floor(i / 4 / SCREEN_WIDTH);
+		callback({ x, y, i });
+	}
+	const t1 = performance.now();
+	console.log(`Call to doSomething took ${t1 - t0} milliseconds.`);
+};
+
+(() => {
+	loopyLoop(myImageData.data, ({ i }) => {
+		applyColorAt(myImageData.data, i, COLORS.desktop);
+	});
+	for (let view of views) {
+		drawView(myImageData.data, view);
+	}
+	ctx.putImageData(myImageData, 0, 0);
+})();
